@@ -1,0 +1,8 @@
+curascan.db
+scans
+results
+.venv-1
+__pycache__/*.pyc
+__pycache__/*.pyo
+checkpoints/*.*
+logs/*.*
