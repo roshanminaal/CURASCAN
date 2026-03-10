@@ -58,7 +58,7 @@ st.markdown("""
         font-weight: 800;
         text-align: center;
         padding: 1.2rem 1rem;
-        color: #123048;
+        color: black;
         margin-bottom: 0.5rem;
     }
     .brand-logo {
@@ -70,9 +70,7 @@ st.markdown("""
         margin-bottom: 2rem;
     }
     .main-header .gradient-text {
-        background: linear-gradient(90deg, #6EC1E4, #A5E3FF);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
+        color: black;
     }
     .metric-card {
         background: linear-gradient(135deg, #ffffff, #f5fbff);
@@ -749,7 +747,7 @@ def create_overlay(original_image, overlay):
 
 def dashboard_page():
     """Dashboard with metrics"""
-    st.markdown('<h1 class="main-header">📊 <span class="gradient-text">Dashboard</span></h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header"><span class="gradient-text">📊 Dashboard</span></h1>', unsafe_allow_html=True)
     
     col1, col2, col3, col4 = st.columns(4)
     
@@ -843,7 +841,7 @@ def patient_management_page():
 
 def scan_upload_page():
     """Scan upload with MODALITY SWITCHING - THIS IS THE KEY FEATURE!"""
-    st.markdown('<h1 class="main-header">🔬 <span class="gradient-text">Scan Upload & Analysis</span></h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header"><span class="gradient-text">🔬 Scan Upload & Analysis</span></h1>', unsafe_allow_html=True)
     
     # Select patient
     patients = get_patients()
@@ -1272,8 +1270,7 @@ def _public_report_html(result: dict, analysis: dict) -> str:
 
 def landing_page() -> None:
     """First screen: choose Public vs Private access."""
-    st.markdown('<div class="brand-logo">🏥 <span class="gradient-text">CURASCAN</span></div>', unsafe_allow_html=True)  
-    st.markdown('<h1 class="main-header"><span class="gradient-text">Precision Diagnostics at the Speed of AI</span></h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header"><span class="gradient-text">CURASCAN — INTELLIGENT HEALTH CARE IMAGING</span></h1>', unsafe_allow_html=True)
     st.markdown(
         "Advanced medical imaging analysis for professionals. Upload X‑Ray, CT, or MRI scans for "
         "instant, AI‑powered diagnostic insights."
@@ -1310,7 +1307,7 @@ def landing_page() -> None:
 
 
 def public_home_page() -> None:
-    st.markdown('<h1 class="main-header">🏥 <span class="gradient-text">CURASCAN</span></h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header"><span class="gradient-text">🏥 CURASCAN</span></h1>', unsafe_allow_html=True)
     st.markdown("### AI‑Powered Medical Imaging for Everyone")
 
     col1, col2, col3 = st.columns(3)
@@ -1344,7 +1341,7 @@ def public_home_page() -> None:
 
 
 def public_scan_upload_page() -> None:
-    st.markdown('<h1 class="main-header">🔬 <span class="gradient-text">Public Scan Upload & Analysis</span></h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header"><span class="gradient-text">🔬 Public Scan Upload & Analysis</span></h1>', unsafe_allow_html=True)
 
     col_left, col_right = st.columns([2, 3])
 
@@ -1579,7 +1576,7 @@ def main():
         st.session_state.authenticated = False
 
     if not st.session_state.authenticated:
-        st.markdown('<h1 class="main-header">🏥 <span class="gradient-text">CURASCAN Provider Login</span></h1>', unsafe_allow_html=True)
+        st.markdown('<h1 class="main-header"><span class="gradient-text">🏥 CURASCAN Provider Login</span></h1>', unsafe_allow_html=True)
 
         col1, col2, col3 = st.columns([1, 2, 1])
         with col2:

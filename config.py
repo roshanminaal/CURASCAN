@@ -6,7 +6,7 @@ Central configuration for the medical imaging platform with multi-modal support
 import os
 
 # Application Settings
-APP_TITLE = "CURASCAN - Medical Imaging Platform"
+APP_TITLE = "CURASCAN - INTELLIGENT HEALTH CARE IMAGING Platform "
 APP_ICON = "🏥"
 LAYOUT = "wide"
 
