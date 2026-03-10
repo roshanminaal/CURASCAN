@@ -8,22 +8,69 @@ CURASCAN is a Streamlit-based medical imaging platform with AI-powered classific
 
 ```
 CURASCAN/
-├── models/               # DenseNet classifier, UNet segmenter, Grad-CAM
-├── data/                 # Training data (X-ray, MRI, CT)
-├── train/                # Training scripts
-├── app/                  # Streamlit apps 
-├── utils/                # Datasets, losses, metrics, augmentations
+│
+├── models/
+│   ├── densenet_classifier.py
+│   ├── unet_segmenter.py
+│   └── gradcam_utils.py
+│
+|
+|── data/
+|    ├── xray/
+|    │    ├── train/
+|    |    |      ├──normal
+|    |    |      ├──penumonia
+|    │    ├── test/
+|    |    |      ├──normal
+|    |    |      ├──penumonia
+|    │    └── val
+|    |         ├──normal
+|    |         ├──penumonia
+|    ├── mri/
+|    │      ├── test/
+|    |      |      └──glioma
+|    |      |      └──meningioma
+|    |      |      └──notumor
+|    |      |      └──pituitary
+|    │      ├── train/
+|    |          └──glioma
+|    |          └──meningioma
+|    |          └──notumor
+|    |          └──pituitary
+|    │   
+|    └── ct/
+|         ├── train/
+|         |      ├──normal
+|         |      ├──penumonia
+|         ├── test/
+|         |      ├──normal
+|         |      ├──penumonia
+|         └── val/
+|               ├──normal
+|               ├──penumonia
+
+├── train/
+│   ├── train_classification.py
+│   ├── train_segmentation.py
+│   └── kfold_training.py
+│
+├── app/                 
+│   ├── app.py            # Streamlit apps 
+│
+├── utils/
+│   ├── datasets.py
+│   ├── losses.py
+│   ├── metrics.py
+│   └── augmentations.py
+│
 ├── scans/                # Uploaded patient scans (runtime)
 ├── checkpoints/          # Saved model weights (runtime)
+├──config.py
+├──reports_utils.py
+├──database.py
 ├── curascan.db           # SQLite database (runtime)
 ├── requirements.txt
-├──config.py
-├──database.py
-├──image_analysis.py
-├──report_analysis.py
 ├── README.md
-└── run.sh
-```
 
 ---
 
