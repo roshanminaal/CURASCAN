@@ -61,8 +61,7 @@ class DenseNetClassifier(nn.Module):
         else:
             probs = torch.softmax(logits, dim=-1)
         return logits, probs
-
-
+        
 def build_xray_classifier(pretrained: bool = True) -> DenseNetClassifier:
     """Binary classifier for chest X-ray pneumonia detection."""
     return DenseNetClassifier(num_classes=1, pretrained=pretrained)

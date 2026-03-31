@@ -37,6 +37,7 @@ try:
 
     from models.densenet_classifier import build_mri_classifier, build_xray_classifier, build_ct_classifier
     from models.unet_segmenter import UNet
+    from models.gradcam_utils import generate_gradcam_overlay
 
     _HAS_TORCH = True
 except Exception:
@@ -189,6 +190,16 @@ WEIGHT_ENTROPY = 0.15
 WEIGHT_SPATIAL = 0.10
 WEIGHT_LOCAL_STD = 0.10
 WEIGHT_EDGE = 0.05
+
+# Validation Configuration (to detect non-medical images)
+VALIDATION_CONFIG = {
+    'max_saturation': 0.15,      # Medical scans should be mostly grayscale
+    'min_entropy': 2.5,          # Too low entropy = blank/simple image
+    'max_entropy': 7.8,          # Too high entropy = noisy natural photo
+    'min_brightness': 10,        # Reject near-black images
+    'max_brightness': 240,       # Reject near-white images
+    'min_variance': 100,         # Reject flat/untextured images
+}
 
 os.makedirs(SCANS_DIR, exist_ok=True)
 
@@ -741,6 +752,42 @@ def create_overlay(original_image, overlay):
     
     return original_image
 
+
+def is_medical_image(image):
+    """
+    Validate if an uploaded image is likely a medical scan.
+    Returns: (bool, str) - (is_valid, error_message)
+    """
+    # 1. Color Saturation Check (Scans are mostly grayscale)
+    img_hsv = cv2.cvtColor(np.array(image.convert('RGB')), cv2.COLOR_RGB2HSV)
+    saturation = np.mean(img_hsv[:, :, 1]) / 255.0
+    if saturation > VALIDATION_CONFIG['max_saturation']:
+        return False, "Image appears too colorful to be a medical scan. Please upload a grayscale X-Ray, CT, or MRI."
+
+    # 2. Intensity and Contrast Check
+    image_np = np.array(image.convert('L'))
+    mean_intensity = np.mean(image_np)
+    intensity_variance = np.var(image_np)
+
+    if mean_intensity < VALIDATION_CONFIG['min_brightness']:
+        return False, "Image is too dark. Please upload a clear medical scan."
+    if mean_intensity > VALIDATION_CONFIG['max_brightness']:
+        return False, "Image is too bright/washed out. Please upload a clear medical scan."
+    if intensity_variance < VALIDATION_CONFIG['min_variance']:
+        return False, "Image lacks necessary contrast/detail for medical analysis."
+
+    # 3. Entropy Check (Detects natural photos vs medical scans)
+    hist = cv2.calcHist([image_np], [0], None, [256], [0, 256])
+    hist = hist.flatten() / hist.sum()
+    entropy = -np.sum(hist * np.log2(hist + 1e-10))
+
+    if entropy < VALIDATION_CONFIG['min_entropy']:
+        return False, "Image is too simple or blank. Please upload a valid scan."
+    if entropy > VALIDATION_CONFIG['max_entropy']:
+        return False, "Image is too complex/noisy. This might be a natural photo or a low-quality scan."
+
+    return True, "Valid medical scan detected."
+
 # ═══════════════════════════════════════════════════════════════════════════
 # PAGE FUNCTIONS
 # ═══════════════════════════════════════════════════════════════════════════
@@ -911,11 +958,21 @@ def scan_upload_page():
             image = _load_uploaded_image(uploaded_file, modality_params["name"])
             if image is not None:
                 st.image(image, caption=f"Uploaded {current_modality} Image", use_container_width=True)
+                
+                # Image Validation
+                is_valid, msg = is_medical_image(image)
+                if not is_valid:
+                    st.error(f"❌ {msg}")
+                    st.warning("⚠️ AI analysis may be unreliable for this image.")
+                    uploaded_is_valid = False
+                else:
+                    st.success(f"✅ {msg}")
+                    uploaded_is_valid = True
             else:
                 return
             
             # Analysis options
-            ai_model = st.radio("AI Analysis", ["Classification", "Segmentation", "Both"])
+            ai_model = st.radio("AI Analysis", ["Classification", "Segmentation", "Both"], disabled=not uploaded_is_valid)
             
             # Advanced options
             with st.expander("⚙️ Advanced Options"):
@@ -925,7 +982,7 @@ def scan_upload_page():
                 st.write(f"- Texture Threshold: {modality_params['texture_high']}")
                 st.write(f"- CLAHE Clip Limit: {modality_params['clahe_clip_limit']}")
             
-            if st.button("🚀 Run AI Analysis", use_container_width=True, type="primary"):
+            if st.button("🚀 Run AI Analysis", use_container_width=True, type="primary", disabled=not uploaded_is_valid):
                 with st.spinner(f"Running {current_modality} AI analysis..."):
                     result_text = ""
                     confidence = 0.0
@@ -946,11 +1003,30 @@ def scan_upload_page():
                             overlay_image = create_overlay(image, seg_mask)
                             
                             # STEP 3: Grad-CAM
-                            raw_mask = run_segmentation_raw(image, modality=current_modality)
-                            heatmap, gradcam_conf = generate_gradcam_from_segmentation(raw_mask)
-                            if heatmap is not None:
-                                heatmap_image = create_overlay(image, heatmap)
-                            seg_score = gradcam_conf
+                            # Use true gradient-based Grad-CAM from the classifier instead of just blurring the mask
+                            if current_modality == "X-Ray":
+                                model_for_cam = _load_xray_model()
+                            elif current_modality == "CT":
+                                model_for_cam = _load_ct_model_v2()
+                            elif current_modality == "MRI":
+                                model_for_cam = _load_mri_model()
+                            else:
+                                model_for_cam = None
+
+                            if model_for_cam is not None:
+                                device = next(model_for_cam.parameters()).device
+                                x_cam = _classification_transform()(image.convert("RGB")).unsqueeze(0).to(device)
+                                cam_overlay_bgr, cam_conf = generate_gradcam_overlay(model_for_cam, x_cam, image)
+                                # Convert BGR to RGB for Streamlit/PIL
+                                heatmap_image = Image.fromarray(cv2.cvtColor(cam_overlay_bgr, cv2.COLOR_BGR2RGB))
+                                seg_score = cam_conf
+                            else:
+                                # Fallback if Grad-CAM utils fail
+                                raw_mask = run_segmentation_raw(image, modality=current_modality)
+                                heatmap, gradcam_conf = generate_gradcam_from_segmentation(raw_mask)
+                                if heatmap is not None:
+                                    heatmap_image = create_overlay(image, heatmap)
+                                seg_score = gradcam_conf
                     
                     # Generate result text
                     if ai_model == "Both":
@@ -1372,19 +1448,33 @@ def public_scan_upload_page() -> None:
             image = _load_uploaded_image(uploaded, params["name"])
             if image is not None:
                 st.image(image, caption=f"Uploaded {params['name']}", use_container_width=True)
+                
+                # Image Validation
+                is_valid, msg = is_medical_image(image)
+                if not is_valid:
+                    st.error(f"❌ {msg}")
+                    st.warning("⚠️ AI analysis may be unreliable for this image.")
+                    uploaded_is_valid = False
+                else:
+                    st.success(f"✅ {msg}")
+                    uploaded_is_valid = True
+            else:
+                uploaded_is_valid = False
         else:
             image = None
+            uploaded_is_valid = False
 
     with col_right:
         st.markdown("### 🤖 AI Analysis Options")
         ai_choice = st.radio(
             "Analysis Type",
             ["Classification Only", "Segmentation Only", "Both (Recommended)"],
+            disabled=not uploaded_is_valid
         )
-        show_heatmap = st.checkbox("Show Grad‑CAM Heatmap", value=True)
-        show_seg_overlay = st.checkbox("Show Segmentation Overlay", value=True)
+        show_heatmap = st.checkbox("Show Grad‑CAM Heatmap", value=True, disabled=not uploaded_is_valid)
+        show_seg_overlay = st.checkbox("Show Segmentation Overlay", value=True, disabled=not uploaded_is_valid)
 
-        if st.button("🚀 Run AI Analysis", use_container_width=True, disabled=image is None):
+        if st.button("🚀 Run AI Analysis", use_container_width=True, disabled=not uploaded_is_valid):
             if image is None:
                 st.warning("Please upload an image first.")
             else:
@@ -1409,11 +1499,29 @@ def public_scan_upload_page() -> None:
                             if show_seg_overlay:
                                 seg_overlay_image = create_overlay(image, seg_mask_colored)
 
-                            raw_mask = run_segmentation_raw(image, modality=modality)
-                            heatmap, grad_conf = generate_gradcam_from_segmentation(raw_mask)
-                            if heatmap is not None and show_heatmap:
-                                heatmap_image = create_overlay(image, heatmap)
-                            seg_conf = grad_conf
+                            # Use true gradient-based Grad-CAM
+                            if modality == "X-Ray":
+                                model_for_cam = _load_xray_model()
+                            elif modality == "CT":
+                                model_for_cam = _load_ct_model_v2()
+                            elif modality == "MRI":
+                                model_for_cam = _load_mri_model()
+                            else:
+                                model_for_cam = None
+
+                            if model_for_cam is not None and show_heatmap:
+                                device = next(model_for_cam.parameters()).device
+                                x_cam = _classification_transform()(image.convert("RGB")).unsqueeze(0).to(device)
+                                cam_overlay_bgr, cam_conf = generate_gradcam_overlay(model_for_cam, x_cam, image)
+                                heatmap_image = Image.fromarray(cv2.cvtColor(cam_overlay_bgr, cv2.COLOR_BGR2RGB))
+                                seg_conf = cam_conf
+                            else:
+                                # Fallback
+                                raw_mask = run_segmentation_raw(image, modality=modality)
+                                heatmap, grad_conf = generate_gradcam_from_segmentation(raw_mask)
+                                if heatmap is not None and show_heatmap:
+                                    heatmap_image = create_overlay(image, heatmap)
+                                seg_conf = grad_conf
                             if ai_choice == "Segmentation Only":
                                 result_text = "Segmentation Complete"
                                 confidence = seg_conf

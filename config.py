@@ -106,6 +106,16 @@ WEIGHT_SPATIAL = 0.10
 WEIGHT_LOCAL_STD = 0.10
 WEIGHT_EDGE = 0.05
 
+# Validation Configuration (to detect non-medical images)
+VALIDATION_CONFIG = {
+    'max_saturation': 0.15,      # Medical scans should be mostly grayscale
+    'min_entropy': 4.5,          # Too low entropy = blank/simple image
+    'max_entropy': 7.8,          # Too high entropy = noisy natural photo
+    'min_brightness': 10,        # Reject near-black images
+    'max_brightness': 240,       # Reject near-white images
+    'min_variance': 100,         # Reject flat/untextured images
+}
+
 # UI Settings
 OVERLAY_ALPHA = 0.2      # Original image weight in overlay
 OVERLAY_BETA = 0.8       # Overlay weight

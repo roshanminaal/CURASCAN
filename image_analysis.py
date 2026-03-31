@@ -7,6 +7,11 @@ import numpy as np
 import cv2
 from PIL import Image
 from config import *
+# Ensure VALIDATION_CONFIG is explicitly recognized if star import is failing in linting
+try:
+    from config import VALIDATION_CONFIG
+except ImportError:
+    pass
 
 
 def run_classification(image, modality='X-Ray'):
@@ -286,3 +291,39 @@ def create_overlay(original_image, overlay):
         return Image.fromarray(combined)
     
     return original_image
+
+
+def is_medical_image(image):
+    """
+    Validate if an uploaded image is likely a medical scan.
+    Returns: (bool, str) - (is_valid, error_message)
+    """
+    # 1. Color Saturation Check (Scans are mostly grayscale)
+    img_hsv = cv2.cvtColor(np.array(image.convert('RGB')), cv2.COLOR_RGB2HSV)
+    saturation = np.mean(img_hsv[:, :, 1]) / 255.0
+    if saturation > VALIDATION_CONFIG['max_saturation']:
+        return False, "Image appears too colorful to be a medical scan. Please upload a grayscale X-Ray, CT, or MRI."
+
+    # 2. Intensity and Contrast Check
+    image_np = np.array(image.convert('L'))
+    mean_intensity = np.mean(image_np)
+    intensity_variance = np.var(image_np)
+
+    if mean_intensity < VALIDATION_CONFIG['min_brightness']:
+        return False, "Image is too dark. Please upload a clear medical scan."
+    if mean_intensity > VALIDATION_CONFIG['max_brightness']:
+        return False, "Image is too bright/washed out. Please upload a clear medical scan."
+    if intensity_variance < VALIDATION_CONFIG['min_variance']:
+        return False, "Image lacks necessary contrast/detail for medical analysis."
+
+    # 3. Entropy Check (Detects natural photos vs medical scans)
+    hist = cv2.calcHist([image_np], [0], None, [256], [0, 256])
+    hist = hist.flatten() / hist.sum()
+    entropy = -np.sum(hist * np.log2(hist + 1e-10))
+
+    if entropy < VALIDATION_CONFIG['min_entropy']:
+        return False, "Image is too simple or blank. Please upload a valid scan."
+    if entropy > VALIDATION_CONFIG['max_entropy']:
+        return False, "Image is too complex/noisy. This might be a natural photo or a low-quality scan."
+
+    return True, "Valid medical scan detected."
